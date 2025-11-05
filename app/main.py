@@ -6,7 +6,22 @@ from models.task import Task, TaskStatus
 
 app = FastAPI()
 
-@app.get("/tasks/")
+notFoundResponseFormat = {
+    "description": "Not Found",
+    "content": {
+        "application/json": {
+            "example": {
+                "detail": "Задача не найдена"
+            }
+        }
+    }
+}
+
+@app.get(
+    "/tasks/",
+    summary="Получить задачи", 
+    description="Получить задачи (с опциональным фильтром по статусу)",
+)
 async def get_tasks(status: TaskStatus = Query(None), db: AsyncSession = Depends(get_db)):
     query = select(Task)
     if status:
@@ -16,7 +31,11 @@ async def get_tasks(status: TaskStatus = Query(None), db: AsyncSession = Depends
     tasks = result.scalars().all()
     return tasks
 
-@app.post("/tasks/")
+@app.post(
+    "/tasks/", 
+    summary="Cоздать задачу", 
+    description="Создать новую задачу",
+)
 async def create_task(title: str, status: TaskStatus, description = None, db: AsyncSession = Depends(get_db)):
     task = Task(title=title, description=description, status=status)
     db.add(task)
@@ -26,7 +45,14 @@ async def create_task(title: str, status: TaskStatus, description = None, db: As
 
     return {"id": task.id, "title": task.title, "description": task.description, "status": task.status}
 
-@app.put("/tasks/{task_id}/")
+@app.put(
+    "/tasks/{task_id}/", 
+    summary="Изменить задачу", 
+    description="Изменить название/статус/описание задачи по ID, если она существует",
+    responses={
+        404: notFoundResponseFormat,
+    }    
+)
 async def update_task(task_id: int, title: str = None, status: TaskStatus = None, description: str = None, db: AsyncSession = Depends(get_db)):
     task = await db.get(Task, task_id)
 
@@ -45,7 +71,14 @@ async def update_task(task_id: int, title: str = None, status: TaskStatus = None
 
     return {"id": task.id, "title": task.title, "description": task.description, "status": task.status}
 
-@app.delete("/tasks/{task_id}/")
+@app.delete(
+    "/tasks/{task_id}/",
+    summary="Удалить задачу", 
+    description="Удалить задачу по ID, если она существует",
+    responses={
+        404: notFoundResponseFormat,
+    }
+)
 async def delete_task(task_id: int, db: AsyncSession = Depends(get_db)):
     task = await db.get(Task, task_id)
 
