@@ -1,55 +1,66 @@
-from fastapi import FastAPI, Query, HTTPException
-from base import database
+from fastapi import FastAPI, Query, HTTPException, Depends
+from sqlalchemy.ext.asyncio import AsyncSession
+from base import get_db
 from sqlalchemy import select, insert, update, delete
 from models.task import Task, TaskStatus
 
 app = FastAPI()
 
-@app.get("/")
-def read_root():
-    return {"Hello": "World"}
-
 @app.get("/tasks/")
-async def get_tasks(status: TaskStatus = Query(None)):
+async def get_tasks(status: TaskStatus = Query(None), db: AsyncSession = Depends(get_db)):
     query = select(Task)
     if status:
         query = query.where(Task.status == status)
-    
-    tasks = await database.fetch_all(query)
+
+    result = await db.execute(query)
+    tasks = result.scalars().all()
     return tasks
 
 @app.post("/tasks/")
-async def create_task(title: str, description: str, status: TaskStatus):
-    query = insert(Task).values(title=title, description=description, status=status)
-    task_id = await database.execute(query)
-    return {"id": task_id, "title": title, "description": description, "status": status} 
+async def create_task(title: str, status: TaskStatus, description = None, db: AsyncSession = Depends(get_db)):
+    task = Task(title=title, description=description, status=status)
+    db.add(task)
+
+    await db.commit()
+    await db.refresh(task)
+
+    return {"id": task.id, "title": task.title, "description": task.description, "status": task.status}
 
 @app.put("/tasks/{task_id}/")
-async def update_task(task_id: int, title: str = None, description: str = None, status: TaskStatus = None):
-    query = update(Task).where(Task.id == task_id)
-    
-    if title is not None:
-        query = query.values(title=title)
-    if description is not None:
-        query = query.values(description=description)
-    if status is not None:
-        query = query.values(status=status)
-    
-    result = await database.execute(query)
+async def update_task(task_id: int, title: str = None, status: TaskStatus = None, description: str = None, db: AsyncSession = Depends(get_db)):
+    task = await db.get(Task, task_id)
 
-    return result
+    if not task:
+        raise HTTPException(status_code=404, detail="Задача не найдена")
+
+    if title is not None:
+        task.title = title
+    if description is not None:
+        task.description = description
+    if status is not None:
+        task.status = status
+
+    await db.commit()
+    await db.refresh(task)
+
+    return {"id": task.id, "title": task.title, "description": task.description, "status": task.status}
 
 @app.delete("/tasks/{task_id}/")
-async def delete_task(task_id: int):
-    query = delete(Task).where(Task.id == task_id)
-    result = await database.execute(query)
+async def delete_task(task_id: int, db: AsyncSession = Depends(get_db)):
+    task = await db.get(Task, task_id)
 
-    return result
+    if not task:
+        raise HTTPException(status_code=404, detail="Задача не найдена")
+
+    await db.delete(task)
+    await db.commit()
+
+    return {"detail": "Задача удаленна"}
 
 @app.on_event("startup")
 async def startup():
-    await database.connect()
+    pass
 
 @app.on_event("shutdown")
 async def shutdown():
-    await database.disconnect()
+    await engine.dispose()
