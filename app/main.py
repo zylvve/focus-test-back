@@ -2,7 +2,7 @@ from fastapi import FastAPI, Query, HTTPException, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from base import get_db
 from sqlalchemy import select, insert, update, delete
-from models.task import Task, TaskStatus
+from models.task import Task, TaskStatus, TaskCreate, TaskUpdate
 from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
@@ -49,14 +49,14 @@ async def get_tasks(status: TaskStatus = Query(None), db: AsyncSession = Depends
     summary="Cоздать задачу", 
     description="Создать новую задачу",
 )
-async def create_task(title: str, status: TaskStatus, description = None, db: AsyncSession = Depends(get_db)):
-    task = Task(title=title, description=description, status=status)
-    db.add(task)
+async def create_task(task: TaskCreate, db: AsyncSession = Depends(get_db)):
+    new_task = Task(title=task.title, description=task.description, status=task.status)
+    db.add(new_task)
 
     await db.commit()
-    await db.refresh(task)
+    await db.refresh(new_task)
 
-    return {"id": task.id, "title": task.title, "description": task.description, "status": task.status}
+    return {"id": new_task.id, "title": new_task.title, "description": new_task.description, "status": new_task.status}
 
 @app.put(
     "/tasks/{task_id}/", 
@@ -66,23 +66,23 @@ async def create_task(title: str, status: TaskStatus, description = None, db: As
         404: notFoundResponseFormat,
     }    
 )
-async def update_task(task_id: int, title: str = None, status: TaskStatus = None, description: str = None, db: AsyncSession = Depends(get_db)):
-    task = await db.get(Task, task_id)
+async def update_task(task_id: int, task: TaskUpdate, db: AsyncSession = Depends(get_db)):
+    current_task = await db.get(Task, task_id)
 
-    if not task:
+    if not current_task:
         raise HTTPException(status_code=404, detail="Задача не найдена")
 
-    if title is not None:
-        task.title = title
-    if description is not None:
-        task.description = description
-    if status is not None:
-        task.status = status
+    if task.title is not None:
+        current_task.title = task.title
+    if task.description is not None:
+        current_task.description = task.description
+    if task.status is not None:
+        current_task.status = task.status
 
     await db.commit()
-    await db.refresh(task)
+    await db.refresh(current_task)
 
-    return {"id": task.id, "title": task.title, "description": task.description, "status": task.status}
+    return {"id": current_task.id, "title": current_task.title, "description": current_task.description, "status": current_task.status}
 
 @app.delete(
     "/tasks/{task_id}/",
