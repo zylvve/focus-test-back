@@ -3,8 +3,21 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from base import get_db
 from sqlalchemy import select, insert, update, delete
 from models.task import Task, TaskStatus
+from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
+
+origins = [
+    "http://localhost:5173",
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 notFoundResponseFormat = {
     "description": "Not Found",
