@@ -5,3 +5,4 @@ asyncpg
 databases
 alembic
 pydantic
+psycopg2
