@@ -2,8 +2,9 @@ from fastapi import FastAPI, Query, HTTPException, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from base import get_db
 from sqlalchemy import select, insert, update, delete
-from models.task import Task, TaskStatus, TaskCreate, TaskUpdate
+from models.task import Task, TaskStatus, TaskCreate, TaskUpdate, TaskResponse
 from fastapi.middleware.cors import CORSMiddleware
+from typing import List
 
 app = FastAPI()
 
@@ -30,12 +31,23 @@ notFoundResponseFormat = {
     }
 }
 
+deletedSuccessfullyFormat = {
+    "description": "OK",
+    "content": {
+        "application/json": {
+            "example": {
+                "detail": "Задача удалена"
+            }
+        }
+    }
+}
+
 @app.get(
     "/tasks/",
     summary="Получить задачи", 
     description="Получить задачи (с опциональным фильтром по статусу)",
 )
-async def get_tasks(status: TaskStatus = Query(None), db: AsyncSession = Depends(get_db)):
+async def get_tasks(status: TaskStatus = Query(None), db: AsyncSession = Depends(get_db)) -> List[TaskResponse]:
     query = select(Task)
     if status:
         query = query.where(Task.status == status)
@@ -49,14 +61,20 @@ async def get_tasks(status: TaskStatus = Query(None), db: AsyncSession = Depends
     summary="Cоздать задачу", 
     description="Создать новую задачу",
 )
-async def create_task(task: TaskCreate, db: AsyncSession = Depends(get_db)):
+async def create_task(task: TaskCreate, db: AsyncSession = Depends(get_db)) -> TaskResponse:
     new_task = Task(title=task.title, description=task.description, status=task.status)
     db.add(new_task)
 
     await db.commit()
     await db.refresh(new_task)
 
-    return {"id": new_task.id, "title": new_task.title, "description": new_task.description, "status": new_task.status}
+    return {
+        "id": new_task.id,
+        "title": new_task.title, 
+        "description": new_task.description,
+        "status": new_task.status,
+        "created_at": new_task.created_at,
+    }
 
 @app.put(
     "/tasks/{task_id}/", 
@@ -66,7 +84,7 @@ async def create_task(task: TaskCreate, db: AsyncSession = Depends(get_db)):
         404: notFoundResponseFormat,
     }    
 )
-async def update_task(task_id: int, task: TaskUpdate, db: AsyncSession = Depends(get_db)):
+async def update_task(task_id: int, task: TaskUpdate, db: AsyncSession = Depends(get_db)) -> TaskResponse:
     current_task = await db.get(Task, task_id)
 
     if not current_task:
@@ -82,13 +100,20 @@ async def update_task(task_id: int, task: TaskUpdate, db: AsyncSession = Depends
     await db.commit()
     await db.refresh(current_task)
 
-    return {"id": current_task.id, "title": current_task.title, "description": current_task.description, "status": current_task.status}
+    return {
+        "id": current_task.id,
+        "title": current_task.title, 
+        "description": current_task.description,
+        "status": current_task.status,
+        "created_at": current_task.created_at,
+    }
 
 @app.delete(
     "/tasks/{task_id}/",
     summary="Удалить задачу", 
     description="Удалить задачу по ID, если она существует",
     responses={
+        200: deletedSuccessfullyFormat,
         404: notFoundResponseFormat,
     }
 )
@@ -101,7 +126,7 @@ async def delete_task(task_id: int, db: AsyncSession = Depends(get_db)):
     await db.delete(task)
     await db.commit()
 
-    return {"detail": "Задача удаленна"}
+    return {"detail": "Задача удалена"}
 
 @app.on_event("startup")
 async def startup():

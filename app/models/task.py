@@ -2,6 +2,8 @@ from sqlalchemy import Column, Integer, String, Enum, DateTime, func
 from base import Base
 from enum import Enum as PyEnum
 from pydantic import BaseModel
+from typing import Optional
+from datetime import datetime
 
 class TaskStatus(PyEnum):
     pending = "pending"
@@ -16,6 +18,13 @@ class Task(Base):
     description = Column(String, nullable=True)
     status = Column(Enum(TaskStatus), nullable=False)
     created_at = Column(DateTime, server_default=func.now())
+    
+class TaskResponse(BaseModel):
+    id: int
+    title: str
+    description: Optional[str] = None
+    status: str
+    created_at: datetime
     
 class TaskCreate(BaseModel):
     title: str
